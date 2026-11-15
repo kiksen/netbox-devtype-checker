@@ -1,38 +1,38 @@
 # netbox-devtype-checker (ndc)
 
-Prüft, ob die Interfaces von NetBox-Devices zu ihrem Device-Type passen. So werden überflüssige und fehlende Interfaces sichtbar.
+Checks whether the interfaces of NetBox devices match their device type, so that missing and wrong interfaces become visible.
 
-## Funktionsweise
+## How it works
 
-1. ndc liest alle Device-Types, die über `filter.yaml` definiert sind, in einen Cache ein.
-2. Die Devices, die geprüft werden sollen, werden ebenfalls über `filter.yaml` bestimmt. Die Filter werden dazu an die NetBox-API übergeben.
-3. Für jedes Device werden die Interfaces gegen den Device-Type verglichen, in beide Richtungen:
-   - **Überflüssig:** Interface am Device, aber nicht im Device-Type.
-   - **Fehlend:** Interface im Device-Type, aber nicht am Device.
-4. Welche Interfaces verglichen werden, steuert ausschließlich der Abschnitt `interface_filter` in der `filter.yaml`.
+1. ndc loads all device types defined via `filter.yaml` into a cache.
+2. The devices to check are also defined via `filter.yaml`. The filters are passed on to the NetBox API.
+3. For each device, its interfaces are compared against the device type in both directions:
+   - **Wrong interface:** interface on the device, but not in the device type.
+   - **Missing:** interface in the device type, but not on the device.
+4. Which interfaces are compared is controlled solely by the `interface_filter` section of `filter.yaml`.
 
-Der Cache liegt in `.cache/device_types.json` (JSON), gilt 24 Stunden und wird bei geänderten `device_types`-Filtern oder mit `--refresh` neu aufgebaut.
+The cache lives in `.cache/device_types.json` (JSON), is valid for 24 hours, and is rebuilt when the `device_types` or `interface_filter` filters change or with `--refresh`.
 
 ## Installation
 
-Voraussetzung: Python `>=3.14` und [uv](https://docs.astral.sh/uv/).
+Requires Python `>=3.14` and [uv](https://docs.astral.sh/uv/).
 
 ```sh
 uv sync
 ```
 
-## Konfiguration
+## Configuration
 
-Die NetBox-Zugangsdaten kommen aus Umgebungsvariablen oder alternativ aus einer `.env`-Datei im Arbeitsverzeichnis (via pydantic-settings). Echte Umgebungsvariablen haben Vorrang vor `.env`. Vorlage: `cp .env.example .env`.
+The NetBox credentials come from environment variables or, alternatively, from a `.env` file in the working directory (via pydantic-settings). Real environment variables take precedence over `.env`. Template: `cp .env.example .env`.
 
-| Variable        | Bedeutung                                  |
-| --------------- | ------------------------------------------ |
-| `NETBOX_API` oder `NETBOX_URL` | Adresse der NetBox-API (Basis-URL ohne `/api`, z. B. `http://netbox.example.com`)  |
-| `NETBOX_TOKEN`  | API-Token                                  |
+| Variable                       | Meaning                                                                          |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| `NETBOX_API` or `NETBOX_URL`   | NetBox base URL without `/api`, e.g. `http://netbox.example.com` (`NETBOX_API` wins if both are set) |
+| `NETBOX_TOKEN`                 | API token                                                                        |
 
 ## filter.yaml
 
-Der Inhalt der drei Abschnitte wird unverändert als Query-Parameter an die NetBox-REST-API übergeben. Es gilt die [NetBox-Filtersyntax](https://netboxlabs.com/docs/netbox/reference/filtering/), also Feldname mit optionalem Lookup-Suffix (`name__ic`, `type__n`, …). Eine Liste wird als wiederholter Parameter gesendet (mehrere Werte = ODER, bei `__n` = keiner davon).
+The content of the three sections is passed unchanged as query parameters to the NetBox REST API. The [NetBox filtering syntax](https://netboxlabs.com/docs/netbox/reference/filtering/) applies: a field name with an optional lookup suffix (`name__ic`, `type__n`, …). A list is sent as a repeated parameter (several values = OR, with `__n` = none of them).
 
 ```yaml
 device_types:
@@ -48,43 +48,45 @@ interface_filter:
     - cisco-flexstack
 ```
 
-| Schlüssel          | Wird übergeben an                                   | Bedeutung |
-| ------------------ | --------------------------------------------------- | --------- |
-| `device_types`     | `/api/dcim/device-types/`                           | Device-Types, die in den Cache kommen |
-| `devices`          | `/api/dcim/devices/` (der Site-Slug wird von `ndc` ergänzt) | Devices, die geprüft werden |
-| `interface_filter` | `/api/dcim/interfaces/` und `/api/dcim/interface-templates/` | Interfaces, die verglichen werden (Device und Device-Type gleichermaßen) |
+| Key                | Passed to                                                     | Meaning |
+| ------------------ | ------------------------------------------------------------- | ------- |
+| `device_types`     | `/api/dcim/device-types/`                                     | Device types that go into the cache |
+| `devices`          | `/api/dcim/devices/` (`ndc` adds the site slug)               | Devices that are checked |
+| `interface_filter` | `/api/dcim/interfaces/` and `/api/dcim/interface-templates/`  | Interfaces that are compared (device and device type alike) |
 
-Alle Schlüssel sind optional. Was nicht gesetzt ist, wird nicht gefiltert. Das Beispiel überspringt Management-Interfaces sowie virtuelle und Stack-Interfaces. Die gültigen Werte für `type` stehen in NetBox unter den Interface-Typen. Der Filter wird serverseitig angewendet. Ändert er sich, wird der Cache neu aufgebaut.
+All keys are optional; whatever is not set is not filtered. The example skips management-only, virtual, LAG and stack interfaces. The valid values for `type` are the interface types in NetBox, and NetBox rejects unknown ones with a 400 error. Filtering happens server-side. When the filter changes, the cache is rebuilt.
 
-## Verwendung
+## Usage
 
-| Option              | Bedeutung                                   |
-| ------------------- | ------------------------------------------- |
-| `--filter <datei>`  | Filterdatei, Default: `filter.yaml`         |
-| `--siteslug <slug>` | Nur Devices dieser Site prüfen              |
-| `--all`             | Alle Sites prüfen (Alternative zu `--siteslug`) |
-| `--compare-types`   | Zusätzlich den Interface-Typ vergleichen (Default: nur Namen) |
-| `--changes <n>`     | Letzte n Changes je Device mit Abweichungen, pro User gezählt (Default 20, 0 = aus) |
-| `--refresh`         | Device-Type-Cache ignorieren und neu laden |
-| `--output-dir <dir>`| Zielordner für die Reports (Default `output`) |
+| Option               | Meaning |
+| -------------------- | ------- |
+| `--filter <file>`    | Filter file, default `filter.yaml` |
+| `--siteslug <slug>`  | Check only devices of this site |
+| `--all`              | Check all sites (alternative to `--siteslug`) |
+| `--compare-types`    | Also compare the interface type (default: names only) |
+| `--changes <n>`      | Last n changes per device with deviations, counted per user (default 20, 0 = off) |
+| `--refresh`          | Ignore the device type cache and reload it |
+| `--output-dir <dir>` | Target folder for the reports (default `output`) |
 
-Exit-Code: `0` keine Abweichungen, `1` Abweichungen gefunden, `2` Fehler in Aufruf oder Konfiguration.
+Exit code: `0` no deviations, `1` deviations found, `2` error in invocation or configuration.
 
 ```sh
 uv run ndc --siteslug berlin
 uv run ndc --all
-uv run ndc --all --filter andere-filter.yaml
+uv run ndc --all --filter other-filter.yaml
 ```
 
-## Ausgabe
+While running, `ndc` prints each device as it is checked (`site [3/42] device-name`).
 
-Das Ergebnis wird als Markdown-Datei in `output/` gespeichert (Ordner ist in `.gitignore`). Pro Site entsteht eine Datei, z. B. `output/<YYYY-MM-DD>-<siteslug>.md`, mit einem Abschnitt je Device. Bei `--all` entsteht eine Datei je Site.
+## Output
 
-Pro Device werden nur Abweichungen aufgelistet. Passende Interfaces werden nicht einzeln genannt, nur ihre Anzahl. Devices ohne Abweichungen stehen gesammelt am Ende unter „Clean devices". Aufeinanderfolgende Interfaces (ab drei) werden zu Bereichen zusammengefasst (`Gi1/0/10-24`).
+The result is saved as a Markdown file in `output/` (the folder is in `.gitignore`). One file is created per site, e.g. `output/<YYYY-MM-DD>-<siteslug>.md`, with one section per device. With `--all`, one file per site is created.
 
-Jedes Device wird einzeln geprüft, auch Stack-/Virtual-Chassis-Member. Bei Membern gibt die VC-Position die erste Ziffer der Interface-Namen vor: Das Template beschreibt Member 1 (`Gi1/0/1`), bei Position 2 werden `Gi2/0/1` erwartet, bei Position 3 `Gi3/0/4` usw. Das gilt auch für vierstellige Namen (`Gi2/0/3/1`). Namen mit weniger als drei Zahlen (z. B. `Gi0/0`) bleiben unverändert.
+Only deviations are listed per device. Matching interfaces are not listed individually, only counted. Devices without deviations are collected at the end under "Clean devices". Consecutive interfaces (three or more) are folded into ranges (`Gi1/0/10-24`). Wrong interfaces are listed with their NetBox type in parentheses, so the type can be added to `interface_filter` directly.
 
-Der Namensvergleich normalisiert gängige Cisco-Kürzel (`Gi1/0/1` = `GigabitEthernet1/0/1`, `Te`, `Fa`, `Eth`, `Po` usw.) und ist case-insensitive. Im Report stehen die Originalnamen.
+Every device is checked individually, including stack / virtual chassis members. For members, the VC position determines the first digit of the interface names: the template describes member 1 (`Gi1/0/1`), at position 2 `Gi2/0/1` is expected, at position 3 `Gi3/0/4` and so on. This also works for four-part names (`Gi2/0/3/1`). Names with fewer than three numbers (e.g. `Gi0/0`) are left unchanged. The device heading shows the position (`/ VC Member Position 2`).
+
+Name comparison normalizes common Cisco abbreviations (`Gi1/0/1` = `GigabitEthernet1/0/1`, `Te`, `Fa`, `Eth`, `Po`, etc.) and is case-insensitive. The report shows the original names.
 
 ```markdown
 # Site berlin
@@ -109,15 +111,15 @@ Der Namensvergleich normalisiert gängige Cisco-Kürzel (`Gi1/0/1` = `GigabitEth
 sw-berlin-02
 ```
 
-Der Report ist englisch. Bei Devices mit Abweichungen steht zusätzlich die Zeile mit den letzten Changes pro User. Berücksichtigt werden Changes am Device und an seinen Interfaces (inkl. gelöschter Interfaces).
+For devices with deviations, the report also contains a line with the last changes per user. Changes to the device and its interfaces (including deleted interfaces) are taken into account.
 
-Umsetzung: einfache String-Ausgabe mit `pathlib.Path.write_text`, kein Template-Paket nötig. Pro Device ein `##`-Abschnitt, Fett-Überschriften und Bullet-Listen mit Inline-Code für Interface-Namen.
+Implementation: plain string output with `pathlib.Path.write_text`, no template package needed. One `##` section per device, bold headings, and bullet lists with inline code for interface names.
 
-## Entwicklung
+## Development
 
-Verwendete Bibliotheken:
+Libraries used:
 
-- [pynetbox](https://github.com/netbox-community/pynetbox) – NetBox-API-Client
+- [pynetbox](https://github.com/netbox-community/pynetbox) – NetBox API client
 - [typer](https://typer.tiangolo.com/) – CLI
-- [rich](https://github.com/Textualize/rich) – Ausgabe
-- [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) – Konfiguration aus ENV und `.env`
+- [rich](https://github.com/Textualize/rich) – output
+- [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) – configuration from env and `.env`

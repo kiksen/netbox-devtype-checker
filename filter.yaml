@@ -1,19 +1,19 @@
-# Filter für ndc. Alle Schlüssel sind optional; was nicht gesetzt ist, wird nicht gefiltert.
-# Die Inhalte werden unverändert als Query-Parameter an die NetBox-REST-API übergeben.
+# Filters for ndc. All keys are optional; whatever is not set is not filtered.
+# The contents are passed unchanged as query parameters to the NetBox REST API.
 # Syntax: https://netboxlabs.com/docs/netbox/reference/filtering/
-# Listen werden als wiederholter Parameter gesendet (mehrere Werte = ODER, mit __n = keiner davon).
+# Lists are sent as a repeated parameter (several values = OR, with __n = none of them).
 
-# Filter für /api/dcim/device-types/ (die Typen, die in den Cache geladen werden).
+# Filter for /api/dcim/device-types/ (the types loaded into the cache).
 device_types:
   manufacturer: cisco
 
-# Filter für /api/dcim/devices/ (der Site-Slug wird von ndc ergänzt).
+# Filter for /api/dcim/devices/ (ndc adds the site slug).
 devices:
   manufacturer: cisco
 
-# Filter für /api/dcim/interfaces/ und /api/dcim/interface-templates/,
-# also für Device und Device-Type gleichermaßen.
-# Achtung: NetBox prüft die Werte; unbekannte Typen ergeben einen 400er-Fehler.
+# Filter for /api/dcim/interfaces/ and /api/dcim/interface-templates/,
+# i.e. for device and device type alike.
+# Note: NetBox validates the values; unknown types result in a 400 error.
 interface_filter:
   mgmt_only: false
   type__n:
