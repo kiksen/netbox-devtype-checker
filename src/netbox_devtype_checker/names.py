@@ -19,6 +19,8 @@ _ALIASES = {
 _SPLIT = re.compile(r"^([A-Za-z-]+)(\d.*)$")
 _TRAILING_NUM = re.compile(r"^(.*?)(\d+)$")
 _MIN_RUN = 3
+# Stack-style names: prefix, member number, then at least two more numbers (1/0/1, 1/0/3/1).
+_STACK_NAME = re.compile(r"^([A-Za-z-]+)\d+((?:/\d+){2,})$")
 
 
 def normalize(name: str) -> str:
@@ -28,6 +30,12 @@ def normalize(name: str) -> str:
         return name.strip().lower()
     prefix, rest = match.group(1).lower(), match.group(2)
     return f"{_ALIASES.get(prefix, prefix)}{rest}"
+
+
+def for_stack_position(name: str, position: int | None) -> str:
+    """Set the member number of a stack-style name: Gi1/0/1 at position 2 -> Gi2/0/1."""
+    match = _STACK_NAME.match(name) if position is not None else None
+    return name if match is None else f"{match.group(1)}{position}{match.group(2)}"
 
 
 def collapse(names: list[str] | tuple[str, ...]) -> list[str]:

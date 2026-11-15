@@ -1,7 +1,8 @@
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-from .models import DeviceResult
+from .models import DeviceResult, Iface
 from .names import collapse
 
 
@@ -9,10 +10,23 @@ def _plural(n: int, word: str) -> str:
     return f"{n} {word}" if n == 1 else f"{n} {word}s"
 
 
+def _with_types(ifaces: tuple[Iface, ...]) -> list[str]:
+    """One line per interface type, runs folded within a type: - `Gi1/0/10-12` (1000base-t)."""
+    by_type: dict[str, list[str]] = defaultdict(list)
+    for i in ifaces:
+        by_type[i.type or "unknown type"].append(i.name)
+    return [
+        f"- `{label}` ({kind})"
+        for kind, names in sorted(by_type.items())
+        for label in collapse(names)
+    ]
+
+
 def render_device(r: DeviceResult, change_limit: int) -> str:
     c = r.comparison
+    vc = f" / VC Member Position {r.device.vc_position}" if r.device.vc_position else ""
     lines = [
-        f"## {r.device.name} ({r.type_model})",
+        f"## {r.device.name} ({r.type_model}){vc}",
         "",
         f"{_plural(c.ok_count, 'interface')} correct",
         "",
@@ -25,8 +39,8 @@ def render_device(r: DeviceResult, change_limit: int) -> str:
         ]
     if c.superfluous:
         lines += [
-            "**Superfluous** (on device, not in device type)",
-            *(f"- `{n}`" for n in collapse(c.superfluous)),
+            "**Wrong interface** - exists on device, but not in template!",
+            *_with_types(c.superfluous),
             "",
         ]
     if c.type_mismatches:

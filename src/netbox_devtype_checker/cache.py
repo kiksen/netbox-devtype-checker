@@ -4,19 +4,21 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
-from .config import FilterValue
+from .config import Filters
 from .models import DeviceTypeData, Iface
 
 DEFAULT_CACHE_FILE = Path(".cache/device_types.json")
 DEFAULT_TTL_SECONDS = 24 * 3600
+# Bump when the cached data may be wrong (e.g. after a fetch bug), so old caches are discarded.
+CACHE_VERSION = 3
 
 
-def filter_hash(filters: Mapping[str, FilterValue]) -> str:
+def filter_hash(filters: Mapping[str, Filters]) -> str:
     return hashlib.sha256(json.dumps(filters, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def load_cache(
-    path: Path, filters: Mapping[str, FilterValue], ttl: int = DEFAULT_TTL_SECONDS
+    path: Path, filters: Mapping[str, Filters], ttl: int = DEFAULT_TTL_SECONDS
 ) -> dict[int, DeviceTypeData] | None:
     """Return cached device types, or None if missing, stale or built for other filters."""
     try:
@@ -24,7 +26,8 @@ def load_cache(
     except OSError, json.JSONDecodeError:
         return None
     if (
-        raw.get("filter_hash") != filter_hash(filters)
+        raw.get("version") != CACHE_VERSION
+        or raw.get("filter_hash") != filter_hash(filters)
         or time.time() - raw.get("fetched_at", 0) > ttl
     ):
         return None
@@ -39,9 +42,10 @@ def load_cache(
 
 
 def save_cache(
-    path: Path, filters: Mapping[str, FilterValue], types: Mapping[int, DeviceTypeData]
+    path: Path, filters: Mapping[str, Filters], types: Mapping[int, DeviceTypeData]
 ) -> None:
     payload = {
+        "version": CACHE_VERSION,
         "filter_hash": filter_hash(filters),
         "fetched_at": time.time(),
         "device_types": {

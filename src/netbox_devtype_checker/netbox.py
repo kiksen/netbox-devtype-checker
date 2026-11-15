@@ -20,7 +20,8 @@ def _value(field: Record) -> str | None:
 class NetBoxClient:
     """Read-only access to the NetBox objects ndc needs."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, interface_filter: Mapping[str, FilterValue]) -> None:
+        self._interface_filter = dict(interface_filter)
         self._nb = pynetbox.api(
             settings.netbox_api.rstrip("/"), token=settings.netbox_token.get_secret_value()
         )
@@ -35,7 +36,15 @@ class NetBoxClient:
         return self.device_type_data(self._nb.dcim.device_types.get(device_type_id))
 
     def device_type_data(self, dt: Record) -> DeviceTypeData:
-        templates = self._nb.dcim.interface_templates.filter(devicetype_id=dt.id)
+        # NetBox silently ignores unknown filter names and returns all templates,
+        # so also verify ownership on the records themselves.
+        templates = [
+            t
+            for t in self._nb.dcim.interface_templates.filter(
+                device_type_id=dt.id, **self._interface_filter
+            )
+            if t.device_type.id == dt.id
+        ]
         return DeviceTypeData(
             id=dt.id,
             model=dt.model,
@@ -44,10 +53,13 @@ class NetBoxClient:
 
     def devices(self, site_slug: str, filters: Mapping[str, FilterValue]) -> list[DeviceData]:
         found = self._nb.dcim.devices.filter(site=site_slug, **filters)
-        return [DeviceData(d.id, d.name or f"device-{d.id}", d.device_type.id) for d in found]
+        return [
+            DeviceData(d.id, d.name or f"device-{d.id}", d.device_type.id, d.vc_position)
+            for d in found
+        ]
 
     def interfaces(self, device_id: int) -> list[tuple[int, Iface]]:
-        found = self._nb.dcim.interfaces.filter(device_id=device_id)
+        found = self._nb.dcim.interfaces.filter(device_id=device_id, **self._interface_filter)
         return [(i.id, Iface(i.name, _value(i.type))) for i in found]
 
     def changes_by_user(

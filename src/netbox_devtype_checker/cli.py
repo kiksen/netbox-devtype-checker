@@ -8,7 +8,7 @@ from rich.table import Table
 
 from .cache import DEFAULT_CACHE_FILE, load_cache, save_cache
 from .compare import compare_interfaces
-from .config import FilterConfig, Settings, load_filter
+from .config import FilterConfig, Filters, Settings, load_filter
 from .models import DeviceResult, DeviceTypeData
 from .netbox import NetBoxClient
 from .report import write_site_report
@@ -25,15 +25,20 @@ def _fail(message: str) -> typer.Exit:
     return typer.Exit(code=2)
 
 
+def _cache_key(cfg: FilterConfig) -> dict[str, Filters]:
+    # Templates are fetched with interface_filter, so it must invalidate the cache too.
+    return {"device_types": cfg.device_types, "interface_filter": cfg.interface_filter}
+
+
 def _device_types(
     client: NetBoxClient, cfg: FilterConfig, refresh: bool
 ) -> dict[int, DeviceTypeData]:
-    cached = None if refresh else load_cache(DEFAULT_CACHE_FILE, cfg.device_types)
+    cached = None if refresh else load_cache(DEFAULT_CACHE_FILE, _cache_key(cfg))
     if cached is not None:
         console.print(f"Device types: {len(cached)} from cache ({DEFAULT_CACHE_FILE})")
         return cached
     types = {t.id: t for t in client.device_types(cfg.device_types)}
-    save_cache(DEFAULT_CACHE_FILE, cfg.device_types, types)
+    save_cache(DEFAULT_CACHE_FILE, _cache_key(cfg), types)
     console.print(f"Device types: {len(types)} fetched from NetBox")
     return types
 
@@ -47,13 +52,18 @@ def _check_site(
     change_limit: int,
 ) -> list[DeviceResult]:
     results: list[DeviceResult] = []
-    for device in client.devices(site, cfg.devices):
+    devices = client.devices(site, cfg.devices)
+    for n, device in enumerate(devices, start=1):
+        console.print(f"[dim]{site} [{n}/{len(devices)}][/dim] {device.name}")
         if device.device_type_id not in types:  # type outside the device_types filter
             types[device.device_type_id] = client.device_type_by_id(device.device_type_id)
         dtype = types[device.device_type_id]
         found = client.interfaces(device.id)
         comparison = compare_interfaces(
-            (i for _, i in found), dtype.interfaces, cfg.interface_filter, compare_types
+            (i for _, i in found),
+            dtype.interfaces,
+            compare_types,
+            device.vc_position,
         )
         by_user: dict[str, int] = {}
         total = 0
@@ -102,12 +112,13 @@ def main(
     except OSError as exc:
         raise _fail(f"cannot read filter file: {exc}") from exc
 
-    client = NetBoxClient(settings)
+    client = NetBoxClient(settings, cfg.interface_filter)
     types = _device_types(client, cfg, refresh)
     sites = client.site_slugs() if all_sites else [siteslug or ""]
 
     table = Table("Site", "Devices", "With deviations", "Report")
     any_findings = False
+    known = set(types)
     for site in sites:
         results = _check_site(client, site, cfg, types, compare_types, changes)
         if not results:
@@ -116,6 +127,8 @@ def main(
         flagged = sum(r.comparison.has_findings for r in results)
         any_findings |= flagged > 0
         table.add_row(site, str(len(results)), str(flagged), str(path))
-    save_cache(DEFAULT_CACHE_FILE, cfg.device_types, types)
+    # Only write when new types were fetched; rewriting would renew the TTL of stale data.
+    if set(types) != known:
+        save_cache(DEFAULT_CACHE_FILE, _cache_key(cfg), types)
     console.print(table)
     raise typer.Exit(code=1 if any_findings else 0)

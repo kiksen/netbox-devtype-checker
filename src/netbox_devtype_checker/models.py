@@ -19,6 +19,7 @@ class DeviceData:
     id: int
     name: str
     device_type_id: int
+    vc_position: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +33,7 @@ class TypeMismatch:
 class Comparison:
     ok_count: int
     missing: tuple[str, ...]
-    superfluous: tuple[str, ...]
+    superfluous: tuple[Iface, ...]
     type_mismatches: tuple[TypeMismatch, ...]
 
     @property

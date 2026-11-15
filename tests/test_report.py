@@ -1,7 +1,7 @@
 from datetime import date
 from pathlib import Path
 
-from netbox_devtype_checker.models import Comparison, DeviceData, DeviceResult
+from netbox_devtype_checker.models import Comparison, DeviceData, DeviceResult, Iface
 from netbox_devtype_checker.report import render_site, write_site_report
 
 
@@ -33,3 +33,18 @@ def test_long_missing_list_is_collapsed() -> None:
     missing = tuple(f"GigabitEthernet1/0/{n}" for n in range(1, 25))
     text = render_site("berlin", [_result("sw-1", missing, {"Max": 3})], 20)
     assert "- `GigabitEthernet1/0/1-24`" in text
+
+
+def test_heading_shows_vc_member_position() -> None:
+    comparison = Comparison(ok_count=1, missing=("Gi2/0/2",), superfluous=(), type_mismatches=())
+    result = DeviceResult(DeviceData(1, "sw-2", 1, 2), "C9200L-24P-4G", comparison)
+    assert "## sw-2 (C9200L-24P-4G) / VC Member Position 2\n" in render_site("x", [result], 20)
+
+
+def test_wrong_interfaces_show_their_type() -> None:
+    wrong = (Iface("Po1", "lag"), Iface("Te2/1/1", "10gbase-x-sfpp"), Iface("Te2/1/2", None))
+    comparison = Comparison(ok_count=1, missing=(), superfluous=wrong, type_mismatches=())
+    text = render_site("x", [DeviceResult(DeviceData(1, "sw", 1), "T", comparison)], 20)
+    assert "- `Po1` (lag)" in text
+    assert "- `Te2/1/1` (10gbase-x-sfpp)" in text
+    assert "- `Te2/1/2` (unknown type)" in text

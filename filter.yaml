@@ -1,7 +1,30 @@
+# Filter für ndc. Alle Schlüssel sind optional; was nicht gesetzt ist, wird nicht gefiltert.
+# Die Inhalte werden unverändert als Query-Parameter an die NetBox-REST-API übergeben.
+# Syntax: https://netboxlabs.com/docs/netbox/reference/filtering/
+# Listen werden als wiederholter Parameter gesendet (mehrere Werte = ODER, mit __n = keiner davon).
+
+# Filter für /api/dcim/device-types/ (die Typen, die in den Cache geladen werden).
 device_types:
   manufacturer: cisco
+
+# Filter für /api/dcim/devices/ (der Site-Slug wird von ndc ergänzt).
 devices:
   manufacturer: cisco
+
+# Filter für /api/dcim/interfaces/ und /api/dcim/interface-templates/,
+# also für Device und Device-Type gleichermaßen.
+# Achtung: NetBox prüft die Werte; unbekannte Typen ergeben einen 400er-Fehler.
 interface_filter:
-  - stack
-  - virtual
+  mgmt_only: false
+  type__n:
+    - virtual
+    - lag
+    - cisco-stackwise
+    - cisco-stackwise-plus
+    - cisco-stackwise-80
+    - cisco-stackwise-160
+    - cisco-stackwise-320
+    - cisco-stackwise-480
+    - cisco-stackwise-1t
+    - cisco-flexstack
+    - cisco-flexstack-plus

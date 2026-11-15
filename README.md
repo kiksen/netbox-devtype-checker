@@ -9,7 +9,7 @@ Prüft, ob die Interfaces von NetBox-Devices zu ihrem Device-Type passen. So wer
 3. Für jedes Device werden die Interfaces gegen den Device-Type verglichen, in beide Richtungen:
    - **Überflüssig:** Interface am Device, aber nicht im Device-Type.
    - **Fehlend:** Interface im Device-Type, aber nicht am Device.
-4. Interfaces, die in `interface_filter` eingetragen sind, werden nicht geprüft.
+4. Welche Interfaces verglichen werden, steuert ausschließlich der Abschnitt `interface_filter` in der `filter.yaml`.
 
 Der Cache liegt in `.cache/device_types.json` (JSON), gilt 24 Stunden und wird bei geänderten `device_types`-Filtern oder mit `--refresh` neu aufgebaut.
 
@@ -27,10 +27,12 @@ Die NetBox-Zugangsdaten kommen aus Umgebungsvariablen oder alternativ aus einer 
 
 | Variable        | Bedeutung                                  |
 | --------------- | ------------------------------------------ |
-| `NETBOX_API`    | Adresse der NetBox-API (Basis-URL ohne `/api`, z. B. `http://netbox.example.com`)  |
+| `NETBOX_API` oder `NETBOX_URL` | Adresse der NetBox-API (Basis-URL ohne `/api`, z. B. `http://netbox.example.com`)  |
 | `NETBOX_TOKEN`  | API-Token                                  |
 
 ## filter.yaml
+
+Der Inhalt der drei Abschnitte wird unverändert als Query-Parameter an die NetBox-REST-API übergeben. Es gilt die [NetBox-Filtersyntax](https://netboxlabs.com/docs/netbox/reference/filtering/), also Feldname mit optionalem Lookup-Suffix (`name__ic`, `type__n`, …). Eine Liste wird als wiederholter Parameter gesendet (mehrere Werte = ODER, bei `__n` = keiner davon).
 
 ```yaml
 device_types:
@@ -38,15 +40,21 @@ device_types:
 devices:
   manufacturer: cisco
 interface_filter:
-  - stack
-  - virtual
+  mgmt_only: false
+  type__n:
+    - virtual
+    - lag
+    - cisco-stackwise
+    - cisco-flexstack
 ```
 
-| Schlüssel          | Bedeutung                                           |
-| ------------------ | --------------------------------------------------- |
-| `device_types`     | Filter für die Device-Types, die in den Cache kommen |
-| `devices`          | Filter für die Devices, die geprüft werden          |
-| `interface_filter` | Interfaces, die nicht geprüft werden (case-insensitive Teilstring-Match auf Interface-Name oder -Typ) |
+| Schlüssel          | Wird übergeben an                                   | Bedeutung |
+| ------------------ | --------------------------------------------------- | --------- |
+| `device_types`     | `/api/dcim/device-types/`                           | Device-Types, die in den Cache kommen |
+| `devices`          | `/api/dcim/devices/` (der Site-Slug wird von `ndc` ergänzt) | Devices, die geprüft werden |
+| `interface_filter` | `/api/dcim/interfaces/` und `/api/dcim/interface-templates/` | Interfaces, die verglichen werden (Device und Device-Type gleichermaßen) |
+
+Alle Schlüssel sind optional. Was nicht gesetzt ist, wird nicht gefiltert. Das Beispiel überspringt Management-Interfaces sowie virtuelle und Stack-Interfaces. Die gültigen Werte für `type` stehen in NetBox unter den Interface-Typen. Der Filter wird serverseitig angewendet. Ändert er sich, wird der Cache neu aufgebaut.
 
 ## Verwendung
 
@@ -74,6 +82,8 @@ Das Ergebnis wird als Markdown-Datei in `output/` gespeichert (Ordner ist in `.g
 
 Pro Device werden nur Abweichungen aufgelistet. Passende Interfaces werden nicht einzeln genannt, nur ihre Anzahl. Devices ohne Abweichungen stehen gesammelt am Ende unter „Clean devices". Aufeinanderfolgende Interfaces (ab drei) werden zu Bereichen zusammengefasst (`Gi1/0/10-24`).
 
+Jedes Device wird einzeln geprüft, auch Stack-/Virtual-Chassis-Member. Bei Membern gibt die VC-Position die erste Ziffer der Interface-Namen vor: Das Template beschreibt Member 1 (`Gi1/0/1`), bei Position 2 werden `Gi2/0/1` erwartet, bei Position 3 `Gi3/0/4` usw. Das gilt auch für vierstellige Namen (`Gi2/0/3/1`). Namen mit weniger als drei Zahlen (z. B. `Gi0/0`) bleiben unverändert.
+
 Der Namensvergleich normalisiert gängige Cisco-Kürzel (`Gi1/0/1` = `GigabitEthernet1/0/1`, `Te`, `Fa`, `Eth`, `Po` usw.) und ist case-insensitive. Im Report stehen die Originalnamen.
 
 ```markdown
@@ -81,7 +91,7 @@ Der Namensvergleich normalisiert gängige Cisco-Kürzel (`Gi1/0/1` = `GigabitEth
 
 2 devices checked, 1 with deviations
 
-## sw-berlin-01 (WS-C3850-48P)
+## sw-berlin-01 (WS-C3850-48P) / VC Member Position 2
 
 42 interfaces correct
 
@@ -89,8 +99,8 @@ Der Namensvergleich normalisiert gängige Cisco-Kürzel (`Gi1/0/1` = `GigabitEth
 - `GigabitEthernet1/0/10-24`
 - `GigabitEthernet1/0/47`
 
-**Superfluous** (on device, not in device type)
-- `GigabitEthernet1/0/99`
+**Wrong interface** - exists on device, but not in template!
+- `GigabitEthernet1/0/99` (1000base-t)
 
 **Last 20 changes** (device and its interfaces, max 20): Max: 19 changes, Christian: 1 change
 

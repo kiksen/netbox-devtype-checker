@@ -1,25 +1,23 @@
 from collections.abc import Iterable
 
 from .models import Comparison, Iface, TypeMismatch
-from .names import normalize
-
-
-def is_ignored(iface: Iface, patterns: Iterable[str]) -> bool:
-    """Case-insensitive substring match of a pattern on interface name or type."""
-    haystacks = (iface.name.lower(), (iface.type or "").lower())
-    return any(p.lower() in h for p in patterns for h in haystacks)
+from .names import for_stack_position, normalize
 
 
 def compare_interfaces(
     device: Iterable[Iface],
     template: Iterable[Iface],
-    ignore: Iterable[str] = (),
     compare_types: bool = False,
+    vc_position: int | None = None,
 ) -> Comparison:
-    patterns = tuple(ignore)
     # Keys are normalized (Gi1/0/1 == GigabitEthernet1/0/1); original names are kept for display.
-    dev = {normalize(i.name): i for i in device if not is_ignored(i, patterns)}
-    tpl = {normalize(i.name): i for i in template if not is_ignored(i, patterns)}
+    dev = {normalize(i.name): i for i in device}
+    # Templates describe member 1; a stack member at position N carries N as first number.
+    tpl = {
+        normalize(name): Iface(name, i.type)
+        for i in template
+        for name in [for_stack_position(i.name, vc_position)]
+    }
 
     mismatches = tuple(
         TypeMismatch(dev[name].name, tpl[name].type, dev[name].type)
@@ -30,6 +28,6 @@ def compare_interfaces(
     return Comparison(
         ok_count=common - len(mismatches),
         missing=tuple(tpl[k].name for k in sorted(tpl.keys() - dev.keys())),
-        superfluous=tuple(dev[k].name for k in sorted(dev.keys() - tpl.keys())),
+        superfluous=tuple(dev[k] for k in sorted(dev.keys() - tpl.keys())),
         type_mismatches=mismatches,
     )
