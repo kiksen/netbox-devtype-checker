@@ -1,35 +1,10 @@
 import re
 from collections import defaultdict
 
-# Cisco short forms -> canonical long form (lowercase). Only used for matching, never displayed.
-_ALIASES = {
-    "fa": "fastethernet",
-    "gi": "gigabitethernet",
-    "te": "tengigabitethernet",
-    "twe": "twentyfivegige",
-    "tw": "twogigabitethernet",
-    "fo": "fortygige",
-    "fortygigabitethernet": "fortygige",
-    "hu": "hundredgige",
-    "eth": "ethernet",
-    "po": "port-channel",
-    "vl": "vlan",
-    "lo": "loopback",
-}
-_SPLIT = re.compile(r"^([A-Za-z-]+)(\d.*)$")
 _TRAILING_NUM = re.compile(r"^(.*?)(\d+)$")
 _MIN_RUN = 3
 # Stack-style names: prefix, member number, then at least two more numbers (1/0/1, 1/0/3/1).
 _STACK_NAME = re.compile(r"^([A-Za-z-]+)\d+((?:/\d+){2,})$")
-
-
-def normalize(name: str) -> str:
-    """Matching key: lowercase with common interface prefix abbreviations expanded."""
-    match = _SPLIT.match(name.strip())
-    if not match:
-        return name.strip().lower()
-    prefix, rest = match.group(1).lower(), match.group(2)
-    return f"{_ALIASES.get(prefix, prefix)}{rest}"
 
 
 def for_stack_position(name: str, position: int | None) -> str:

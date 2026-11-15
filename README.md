@@ -86,7 +86,7 @@ Only deviations are listed per device. Matching interfaces are not listed indivi
 
 Every device is checked individually, including stack / virtual chassis members. For members, the VC position determines the first digit of the interface names: the template describes member 1 (`Gi1/0/1`), at position 2 `Gi2/0/1` is expected, at position 3 `Gi3/0/4` and so on. This also works for four-part names (`Gi2/0/3/1`). Names with fewer than three numbers (e.g. `Gi0/0`) are left unchanged. The device heading shows the position (`/ VC Member Position 2`).
 
-Name comparison normalizes common Cisco abbreviations (`Gi1/0/1` = `GigabitEthernet1/0/1`, `Te`, `Fa`, `Eth`, `Po`, etc.) and is case-insensitive. The report shows the original names.
+Interface names are compared exactly (case-sensitive, no abbreviation handling). NetBox uses the long form, so a short form such as `Gi1/0/1` on a device is reported as superfluous and the template name as missing.
 
 ```markdown
 # Site berlin

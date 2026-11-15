@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 
 from .models import Comparison, Iface, TypeMismatch
-from .names import for_stack_position, normalize
+from .names import for_stack_position
 
 
 def compare_interfaces(
@@ -10,11 +10,11 @@ def compare_interfaces(
     compare_types: bool = False,
     vc_position: int | None = None,
 ) -> Comparison:
-    # Keys are normalized (Gi1/0/1 == GigabitEthernet1/0/1); original names are kept for display.
-    dev = {normalize(i.name): i for i in device}
+    # Names are compared 1:1; NetBox uses the long form, so a short form is a finding.
+    dev = {i.name: i for i in device}
     # Templates describe member 1; a stack member at position N carries N as first number.
     tpl = {
-        normalize(name): Iface(name, i.type)
+        name: Iface(name, i.type)
         for i in template
         for name in [for_stack_position(i.name, vc_position)]
     }

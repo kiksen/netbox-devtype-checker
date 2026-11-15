@@ -16,6 +16,14 @@ def test_url_accepted_under_both_names(name: str, monkeypatch: pytest.MonkeyPatc
     assert settings.netbox_api == "http://netbox.example.com"
 
 
+def test_netbox_api_wins_over_netbox_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NETBOX_API", "http://api.example.com")
+    monkeypatch.setenv("NETBOX_URL", "http://url.example.com")
+    monkeypatch.setenv("NETBOX_TOKEN", "t")
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert settings.netbox_api == "http://api.example.com"
+
+
 def test_repo_filter_yaml_passes_rest_syntax_through() -> None:
     cfg = load_filter(Path("filter.yaml"))
     assert cfg.interface_filter["mgmt_only"] is False
