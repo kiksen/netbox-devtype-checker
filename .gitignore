@@ -1,0 +1,31 @@
+# Projekt
+output/
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtuelle Umgebungen (uv)
+.venv/
+
+# Tools
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# IDEs / OS
+.idea/
+.vscode/
+.DS_Store

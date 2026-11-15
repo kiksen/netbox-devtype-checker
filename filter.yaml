@@ -1,0 +1,7 @@
+device_types:
+  manufacturer: cisco
+devices:
+  manufacturer: cisco
+interface_filter:
+  - stack
+  - virtual

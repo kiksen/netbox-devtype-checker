@@ -1,0 +1,47 @@
+[project]
+name = "netbox-devtype-checker"
+version = "0.1.0"
+description = "Checks NetBox device interfaces against their device type"
+authors = [
+    { name = "Christian Knoblauch", email = "christian.knoblauch@gmx.de" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic-settings>=2.16.3",
+    "pynetbox>=7.9.0",
+    "pyyaml>=6.0.3",
+    "rich>=15.0.0",
+    "typer>=0.29.1",
+]
+
+[project.scripts]
+ndc = "netbox_devtype_checker.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.5",
+    "types-pyyaml>=6.0.12.20261113",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "ANN"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["pynetbox", "pynetbox.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
